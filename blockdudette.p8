@@ -3,6 +3,13 @@ version 16
 __lua__
 -- main
 
+-- filename to record inputs.
+-- set to nil to disable
+rec_inp_fn="inputs.txt"
+if rec_inp_fn then
+	printh("",rec_inp_fn,true)
+end
+
 -- loop functions
 function _init()
 	cls()
@@ -30,6 +37,16 @@ function _init()
 	assert(state!=nil)
 end
 
+function btnp_rec(i)
+	local out=btnp(i)
+	if rec_inp_fn and out then
+		--add(recorded_inputs,i)
+		debug("rec",i)
+		printh(tostr(i),rec_inp_fn)
+	end
+	return out
+end
+
 function input(spec)
 	local any=false
 	
@@ -37,7 +54,7 @@ function input(spec)
 		if spec!=nil then
 			return spec[i]
 		else
-			return btnp(i)
+			return btnp_rec(i)
 		end
 	end
 	
@@ -185,6 +202,7 @@ function game_init(state)
 		y=plxy.y,
 		right=false, --face right
 		carry=false, --carry block
+		hidden=false,
 		input=input({})
 	})
 	
@@ -192,8 +210,8 @@ function game_init(state)
 		-- init player object
 		pl=pl,
 		pl2=cp(pl,{
-			x=-100,
 			s=sp_pl2,
+			hidden=true,
 		}),
 		blocks=blocks,
 		blocks_reset=blocks,
@@ -222,12 +240,11 @@ function game_update(state)
 				}),
 				state.blocks_reset
 			),
-			events=fpmap(
-				function (evt)
-					return cp(evt,{done=true})
-				end,
-				state.events
-			)
+			pl2=cp(pl2,{
+				carry=false,
+			}),
+			events=
+				stop_events(state.events),
 		})
 	end
 	
@@ -284,22 +301,23 @@ function game_draw(state)
 	end
 	
 	for pl in all(pls) do
-		debug("spr",pl.s)
-		-- player sprite
- 	spr(
- 		pl.s,
- 		g2w(pl.x),g2w(pl.y),
- 		1,1,
- 		pl.right
- 	)
- 	
- 	-- carry block sprite
- 	if pl.carry then
- 		spr(
- 			sp_block,
- 			g2w(pl.x),g2w(pl.y-1)
- 		)
- 	end
+  if not pl.hidden then
+ 		-- player sprite
+  	spr(
+  		pl.s,
+  		g2w(pl.x),g2w(pl.y),
+  		1,1,
+  		pl.right
+  	)
+  	
+  	-- carry block sprite
+  	if pl.carry then
+  		spr(
+  			sp_block,
+  			g2w(pl.x),g2w(pl.y-1)
+  		)
+  	end
+  end
 	end
 	
 	-- block sprites
@@ -520,14 +538,17 @@ function trig_evt(trgs,xy,evts)
 	)
 	if trig and evts[trig.n]==nil
 		 then
-		return cp(evts,{
-			[trig.n]={
-				n=trig.n,
-				frame=0,
-				x=xy.x,
-				y=xy.y,
-			}
-		})
+		return cp(
+			stop_events(evts),
+			{
+ 			[trig.n]={
+ 				n=trig.n,
+ 				frame=0,
+ 				x=xy.x,
+ 				y=xy.y,
+ 			}
+ 		}
+ 	)
 	else
 		return evts
 	end
@@ -567,46 +588,55 @@ anim_time=10
 
 anims={
 	[0]={
-		⬅️,⬇️,⬅️,➡️,⬇️,⬆️,⬆️,➡️,⬇️,
-		➡️,⬅️,⬇️,⬆️,⬆️,⬅️,⬅️
+		0,3,0,1,3,2,2,1,3,1,0,3,2,2,
+		0,0,
 	},
 	[1]={
-	 ➡️,➡️,➡️,➡️,⬅️,⬇️,⬅️,➡️,⬇️,
-	 ⬅️,⬅️,⬅️,➡️,⬇️,➡️,⬅️,⬇️,➡️,
-	 ➡️,➡️,➡️,➡️,➡️,➡️,➡️,➡️,➡️
+ 	1,1,1,1,0,3,0,1,3,0,0,0,1,3,
+ 	1,0,3,1,1,1,1,1,1,1,1,1,1,
 	}
 }
 
 event_f={
 
 	[0]=function (state,evt)
-		local nstate
+		local nstate=state
+		
 		if evt.frame==0 then
-			nstate=cp(state,{
+			nstate=cp(nstate,{
 				pl2=cp(state.pl2,{
 					x=85,
-					y=26
+					y=26,
+					hidden=false,
+					carry=false,
 				})
 			})
-		else
-			nstate=state
 		end
 
 		return animate(nstate,evt)
 	end,
 	
 	[1]=function (state,evt)
-		local nstate
+		local nstate=state
+
 		if evt.frame==0 then
-			nstate=cp(state,{
+			nstate=cp(nstate,{
 				pl2=cp(state.pl2,{
 					x=83,
-					y=22
+					y=22,
+					hidden=false,
+					carry=false,
 				})
 			})
-		else
-			nstate=state
+		elseif evt.frame>=271 then
+			nstate=cp(nstate,{
+				pl2=cp(state.pl2,{
+					hidden=true,
+				})
+			})
 		end
+		
+		debug("frame",evt.frame)
 		
 		return animate(nstate,evt)
 	end,
@@ -637,8 +667,6 @@ function animate(state,evt)
 		return state,nevt
 	end
 	
-	debug("kfr",kfr)
-	
 	local pl2inp=input({
 		[anim[kfr]]=true
 	})
@@ -648,6 +676,15 @@ function animate(state,evt)
 			input=pl2inp
 		})
 	}),nevt
+end
+
+function stop_events(evts)
+	return fpmap(
+		function (evt)
+			return cp(evt,{done=true})
+		end,
+		evts
+	)
 end
 -->8
 -- test state
@@ -709,9 +746,18 @@ function draw_debug()
 end
 -->8
 -- notes
+--[[
 
--- flags:
--- 0: air
+todo
+----
+. improve event stopping
+
+
+sprite flags
+------------
+0: air
+
+--]]
 -->8
 -- fp helpers
 
