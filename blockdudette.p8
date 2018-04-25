@@ -663,55 +663,9 @@ event_f={
 		return anim_event(
 			state,evt,67,34,false
 		)
-  --[[
- 	local nstate
- 	if evt.frame==0 then
- 		nstate=cp(state,{
- 			pl2=cp(state.pl2,{
- 				x=59,
- 				y=33,
- 				hidden=false,
- 				carry=true,
- 			})
- 		})
- 	else
- 		nstate=state
- 	end
- 	
- 	local nevt=cp(evt,{
-			frame=evt.frame+1
-		})
-		
-		if evt.frame%anim_time==0
-				then
-			return cp(nstate,{
-  		pl2=move_towards(
-  			nstate.pl2,nstate.pl
-  		)
-  	}),nevt
-  else
-  	return nstate,nevt
-  end
-		--]]
 	end,
 	
 }
-
---[[
-function move_towards(a,b)
-	if a.x<b.x then
-		return cp(a,{
-			input=input({[➡️]=true})
-		})
-	elseif a.x>b.x then
-		return cp(a,{
-			input=input({[⬅️]=true})
-		})
-	else
-		return a
-	end
-end
---]]
 
 function anim_event(
 	state,evt,x,y,hide,carry
