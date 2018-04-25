@@ -250,7 +250,7 @@ function game_update(state)
 	end
 	
 	local npl,tmp_blx=
-		next_pl_blx(pl,blocks)
+		next_pl_blx(pl,blocks,pl2)
 	assert(npl)
 	assert(tmp_blx)
 	local tmp_pl2,nblx=
@@ -436,7 +436,9 @@ function try_drop(pl,blx)
 	end
 end
 
-function next_pl_blx(pl,blx)
+function next_pl_blx(
+	pl,blx,pl2
+)
 	local inp=pl.input
 	
 	if inp.v>0 then
@@ -449,7 +451,7 @@ function next_pl_blx(pl,blx)
 			or inp.v!=0 then
 		local dx,dy=next_dxy(pl,inp)
 		local npl=pl_move(
-			pl,blx,dx,dy)
+			pl,blx,dx,dy,pl2)
 		
 		return cp(npl,{
  		right=next_right(pl,inp.h)
@@ -478,7 +480,7 @@ function next_dxy(pl,inp)
 end
 
 function pl_move(
-		pl,blx,dx,dy
+		pl,blx,dx,dy,pl2
 )
 	if not is_walkable(blx,
 				pl.x+dx,pl.y+dy
@@ -501,16 +503,25 @@ function pl_move(
 			) then
 		-- no update
 		return pl
-	end 
+	end
+	
+	if pl2!=nil 
+			and pl2.carry
+			and pl2.x==pl.x+dx
+			and pl2.y==pl.y+dy+1
+			then
+		-- no update
+		return pl
+	end
 	
 	-- move player
 	return pl_fall(cp(pl,{
 		x=pl.x+dx,
 		y=pl.y+dy
-	}),blx)
+	}),blx,pl2)
 end
 
-function pl_fall(pl,blx)
+function pl_fall(pl,blx,pl2)
 	-- drop player to ground,
 	-- track checkpoint if hit
 	local x=pl.x
@@ -518,11 +529,18 @@ function pl_fall(pl,blx)
 	
 	local plcp=pl_try_chkpt(pl)
 	
-	if is_door(x,y+1) 
-			or is_air(blx,x,y+1) then
+	if (
+				is_door(x,y+1) 
+				or is_air(blx,x,y+1)
+			) and (
+				pl2==nil
+				or not pl2.carry
+				or pl2.x!=pl.x
+				or pl2.y!=pl.y+2
+			) then
 		return pl_fall(cp(plcp,{
 			y=y+1
-		}),blx)
+		}),blx,pl2)
 	else
 		return plcp
 	end
@@ -665,7 +683,29 @@ event_f={
 		)
 	end,
 	
+	[4]=function (state,evt)
+		return swap_players(state),
+			cp(evt,{done=true})
+	end,
 }
+
+function swap_players(state)
+
+	local function cp_pl(a,b)
+		return cp(a,{
+			x=b.x,
+			y=b.y,
+			s=b.s,
+			carry=b.carry,
+			right=b.right,
+		})
+	end
+	
+	return cp(state,{
+		pl=cp_pl(state.pl,state.pl2),
+		pl2=cp_pl(state.pl2,state.pl)
+	})
+end
 
 function anim_event(
 	state,evt,x,y,hide,carry
