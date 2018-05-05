@@ -201,7 +201,6 @@ function game_init(state)
 		x=plxy.x,
 		y=plxy.y,
 		right=false, --face right
-		carry={}, --carry stack
 		hidden=false,
 		input=input({})
 	})
@@ -239,6 +238,25 @@ function game_update(state)
 		return swap_players(state)
 	end
 	
+	local tmppl2
+	if is_carrying(pl,pl2,blocks)
+		 then
+		-- hacky way to carry
+		--todo: generalize to all pls
+		tmppl2=cp(pl2,{
+			input=cp(pl2.input,{
+				h=pl.input.h
+			})
+		})
+	else
+		tmppl2=pl2
+	end
+	
+	npls,nblx=next_pls_blx(
+		{pl,tmppl2},blocks
+	)
+	
+	--[[
 	--todo: cleanup
 	local pl2_carried=
 		is_carrying(pl,pl2)
@@ -267,10 +285,15 @@ function game_update(state)
 			y=carry_top_y(npl)
 		})
 	end
+	--]]
 	
-	local npl2=cp(tmp_pl2,{
+	local npl=npls[1]
+	local npl2=cp(npls[2],{
 		input=input({})
 	})
+	assert(npl)
+	assert(npl2)
+	assert(nblx)
 	
 	debug("pl2",
 		npl2.x..","..npl2.y)
@@ -356,10 +379,10 @@ function game_draw(state)
   	)
   	
   	-- carry block sprite
-  	for i,obj in pairs(pl.carry)
+  	for i=1,num_carry(pl,blx)
   			do
   		spr(
-  			obj.s,
+  			sp_block,
   			g2w(pl.x),g2w(pl.y-i)
   		)
   	end
@@ -395,22 +418,32 @@ function is_walkable(blx,x,y)
 		)
 end
 
-function fall(blx,xy)
+function fall(blx,pls,o)
 	-- drop object to ground
-	local x=xy.x
-	local y=xy.y
+	local x=o.x
+	local y=o.y
 	
-	if is_air(blx,x,y+1) then
-		return fall(blx,
-			cp(xy,{y=y+1}))
-	else
-		return xy
+	-- stop if not air
+	if not is_air(blx,x,y+1) then
+		return o
 	end
+	
+	-- stop if hit player
+	for pl in all(pls) do
+		if pl.x==o.x and pl.y==o.y
+				then
+			return o
+		end
+	end
+	
+	-- continue falling
+	return fall(blx,pls,
+		cp(o,{y=y+1}))
 end
 
 function try_pickup(pl,blx)
-	if #pl.carry>0 then
-		return pl,blx
+	if is_carry_bl(pl,blx) then
+		return blx
 	end
 	
 	local pu_x=pickup_x(pl)
@@ -419,49 +452,107 @@ function try_pickup(pl,blx)
 			and is_air(blx,pu_x,pl.y-1)
 			and is_air(blx,pl.x,pl.y-1)
 			then		
-		return cp(pl,{
-			carry={{s=sp_block}}
-		}),clr2d(blx,pu_x,pl.y)
+		return set2d(
+			clr2d(blx,pu_x,pl.y),
+			pl.x,
+			pl.y-1,
+			true
+		)
 	else
-		return pl,blx
+		return blx
 	end
 end
 
-function try_drop(pl,blx)
-	if #pl.carry==0 then
-		return pl,blx
+function try_drop(pl,blx,pls)
+	local ncarry=num_carry(pl,blx)
+
+	if ncarry==0	then
+		return blx
 	end
 	
 	local pu_x=pickup_x(pl)
 	
 	-- check if enough room for
 	-- entire stack
-	for i,obj in pairs(pl.carry)
-			do
+	for i=1,ncarry	do
   if not 
   			is_air(blx,pu_x,pl.y-i)
   		then
   	-- can't drop
-  	return pl,blx
+  	return blx
   end
 	end
 	
 	-- drop each block one by one
 	local tmp_blx=blx
-	for i,obj in pairs(pl.carry)
-			do
-		local xy=fall(tmp_blx,{
+	for i=1,ncarry	do
+		local xy=fall(tmp_blx,pls,{
 			x=pu_x,y=pl.y-i
 		})
-		tmp_blx=
-			set2d(blx,xy.x,xy.y,true)
+		tmp_blx=set2d(
+			clr2d(blx,pl.x,pl.y-i),
+			xy.x,
+			xy.y,
+			true
+		)
 	end
 	
-	-- clear carry stack
-	return cp(pl,{carry={}}),
-	 tmp_blx
+	return tmp_blx
 end
 
+function is_carry_bl(o,blx)
+	return get2d(blx,o.x,o.y-1)
+end
+
+function num_carry(o,blx)
+	if is_carry_bl(o,blx) then
+		return 1+num_carry(
+			{
+				x=o.x,
+				y=o.y-1
+			},
+			blx
+		)
+	else
+		return 0
+	end
+end
+
+function next_pls_blx(pls,blx)
+	--todo: make functional
+	-- pls and blx not const
+	for i,pl in pairs(pls) do
+		local inp=pl.input
+		
+		if inp.v>0 then
+ 		if is_carry_bl(pl,blx) then
+ 			blx=try_drop(pl,blx,pls)			
+		 	assert(blx)
+ 		else
+ 			blx=try_pickup(pl,blx)
+		 	assert(blx)
+ 		end
+		elseif inp.h!=0
+				or inp.v!=0 then
+			local dx,dy=next_dxy(pl,inp)
+			local npl,nblx=pl_move(
+				pl,blx,dx,dy)
+				
+			pls=cp(pls,{
+				[i]=cp(npl,{
+					right=next_right(pl,inp.h)
+				})
+			})
+			blx=nblx
+	 	assert(pls)
+	 	assert(blx)
+ 	end
+	end
+	
+	return pls,blx
+end
+
+--[[
 function next_pl_blx(
 	pl,pl2,blx
 )
@@ -490,6 +581,7 @@ function next_pl_blx(
 	end
 	
 end
+--]]
 
 function next_dxy(pl,inp)
 	-- find dx,dy based on input.
@@ -508,6 +600,7 @@ function next_dxy(pl,inp)
 	return dx,dy
 end
 
+--[[
 function all_carry(pl,pl2)
 	local out=pl.carry
 	if pl2!=nil then
@@ -526,7 +619,9 @@ function all_carry(pl,pl2)
 	end
 	return out
 end
+--]]
 
+--[[
 function all_blocks(blx,pl)
 	local out=blx
 	if pl!=nil then
@@ -539,43 +634,40 @@ function all_blocks(blx,pl)
 	end
 	return out
 end
+--]]
 
 function pl_move(
-		pl,blx,dx,dy,pl2
+		pl,blx,dx,dy
 )
-	-- add pl2 carry to blx
-	local allblx=all_blocks(
-		blx,pl2
-	)
-	local allcarry=all_carry(
-		pl,pl2
-	)
+	--todo: make functional
+	-- blx is not const
 
 	-- is target space blocked?
-	if not is_walkable(allblx,
+	if not is_walkable(blx,
 				pl.x+dx,pl.y+dy
 			) then
 		-- no update
-		return pl
+		return pl,blx
 	end
+	
+	local ncarry=num_carry(pl,blx)
 	
 	-- is taget space have enough
 	-- room for carry stack?
-	for i,obj in pairs(allcarry)
-			do
-		if not is_walkable(allblx,
+	for i=1,ncarry	do
+		if not is_walkable(blx,
  				pl.x+dx,pl.y+dy-i
  			) then
  		-- no update
- 		return pl
+ 		return pl,blx
  	end
  	
  	if dy<0
- 			and not is_walkable(allblx,
+ 			and not is_walkable(blx,
  				pl.x,pl.y-i-1
  			) then
  		-- no update
- 		return pl
+ 		return pl,blx
  	end
 	end
 	
@@ -592,10 +684,20 @@ function pl_move(
 	--]]
 	
 	-- move player
-	return pl_fall(cp(pl,{
+	local npl=pl_fall(cp(pl,{
 		x=pl.x+dx,
 		y=pl.y+dy
-	}),allblx)
+	}),blx)
+	
+	-- move blocks
+	for i=1,ncarry do
+		blx=clr2d(blx,pl.x,pl.y-i)
+		blx=set2d(
+			blx,npl.x,npl.y-i,true
+		)
+	end
+	
+	return npl,blx
 end
 
 function pl_fall(pl,blx)
@@ -706,20 +808,15 @@ function proc_evts(state)
 	return tmp_st
 end
 
-function is_carrying(pa,pb)
-	if #pa.carry==0 then
-		return false
-	else
-		return (
-			pa.x==pb.x
-			and carry_top_y(pa)==pb.y
-		)
-	end
+function is_carrying(pa,pb,blx)
+	assert(blx)
+	local ncarry=num_carry(pa,blx)
+	return (
+		pa.x==pb.x
+		and pa.y-ncarry-1==pb.y
+	)
 end
 
-function carry_top_y(pl)
-	return pl.y-#pl.carry-1
-end
 -->8
 -- events
 
@@ -785,7 +882,6 @@ function swap_players(state)
 			x=b.x,
 			y=b.y,
 			s=b.s,
-			carry=b.carry,
 			right=b.right,
 		})
 	end
@@ -816,7 +912,6 @@ function anim_event(
 				x=x,
 				y=y,
 				hidden=false,
-				carry=carry,
 			})
 		})
 	elseif evt.frame>=last_fr then
@@ -1182,7 +1277,7 @@ __gfx__
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
 10101010101010101010101010101010101010101010101010101030101010102020202010501010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101030101010
-10101010101010101010103010334010101010101010101010102020201010102020202020201010101010101010101010101010101010101010102020101010
+10101010101010101010103010331010101010101010101010102020201010102020202020201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010102020202020
 20202020201020101043202020202010102010101010202010101010101010102020202020201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
