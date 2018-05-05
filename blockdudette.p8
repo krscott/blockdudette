@@ -201,7 +201,7 @@ function game_init(state)
 		x=plxy.x,
 		y=plxy.y,
 		right=false, --face right
-		carry=false, --carry block
+		carry={}, --carry stack
 		hidden=false,
 		input=input({})
 	})
@@ -231,32 +231,42 @@ function game_update(state)
 	local blocks=state.blocks
 
 	if inp.x then
-		-- reset player to checkpoint
-		--[[
-		return cp(state,{
-			blocks=state.blocks_reset,
-			pl=pl_fall(
-				cp(pl,{
-					x=pl.chkpt.x,
-					y=pl.chkpt.y,
-					carry=false
-				}),
-				state.blocks_reset
-			),
-		}, state.chkpt_state)
-		--]]
 		return cp(state,
 			state.chkpt_state)
 	end
 	
-	local npl,tmp_blx=
-		next_pl_blx(pl,blocks,pl2)
-	assert(npl)
+	if inp.o then
+		return swap_players(state)
+	end
+	
+	--todo: cleanup
+	local pl2_carried=
+		is_carrying(pl,pl2)
+	
+	local tmp_pl,tmp_blx,tmp_pl2=
+		next_pl_blx(pl,pl2,blocks)
+	assert(tmp_pl)
 	assert(tmp_blx)
-	local tmp_pl2,nblx=
-		next_pl_blx(pl2,tmp_blx)
 	assert(tmp_pl2)
-	assert(nblx)
+	
+	tmp_pl2,tmp_blx,tmp_pl=
+		next_pl_blx(
+			tmp_pl2,tmp_pl,tmp_blx
+		)
+	assert(tmp_pl)
+	assert(tmp_blx)
+	assert(tmp_pl2)
+	
+	local nblx=tmp_blx
+	local npl=tmp_pl
+
+	debug("plc",pl2_carried)	
+	if pl2_carried then
+		tmp_pl2=cp(tmp_pl2,{
+			x=npl.x,
+			y=carry_top_y(npl)
+		})
+	end
 	
 	local npl2=cp(tmp_pl2,{
 		input=input({})
@@ -346,10 +356,11 @@ function game_draw(state)
   	)
   	
   	-- carry block sprite
-  	if pl.carry then
+  	for i,obj in pairs(pl.carry)
+  			do
   		spr(
-  			sp_block,
-  			g2w(pl.x),g2w(pl.y-1)
+  			obj.s,
+  			g2w(pl.x),g2w(pl.y-i)
   		)
   	end
   end
@@ -398,7 +409,7 @@ function fall(blx,xy)
 end
 
 function try_pickup(pl,blx)
-	if pl.carry then
+	if #pl.carry>0 then
 		return pl,blx
 	end
 	
@@ -408,44 +419,62 @@ function try_pickup(pl,blx)
 			and is_air(blx,pu_x,pl.y-1)
 			and is_air(blx,pl.x,pl.y-1)
 			then		
-		return cp(pl,{carry=true}),
-		 clr2d(blx,pu_x,pl.y)
+		return cp(pl,{
+			carry={{s=sp_block}}
+		}),clr2d(blx,pu_x,pl.y)
 	else
 		return pl,blx
 	end
 end
 
 function try_drop(pl,blx)
-	if not pl.carry then
+	if #pl.carry==0 then
 		return pl,blx
 	end
 	
 	local pu_x=pickup_x(pl)
 	
-	if is_air(blx,pu_x,pl.y-1)
-			then
-			
-		local xy=fall(blx,{
-			x=pu_x,y=pl.y-1
-		})
-			
-		return cp(pl,{carry=false}),
-		 set2d(blx,xy.x,xy.y,true)
-	else
-		return pl,blx
+	-- check if enough room for
+	-- entire stack
+	for i,obj in pairs(pl.carry)
+			do
+  if not 
+  			is_air(blx,pu_x,pl.y-i)
+  		then
+  	-- can't drop
+  	return pl,blx
+  end
 	end
+	
+	-- drop each block one by one
+	local tmp_blx=blx
+	for i,obj in pairs(pl.carry)
+			do
+		local xy=fall(tmp_blx,{
+			x=pu_x,y=pl.y-i
+		})
+		tmp_blx=
+			set2d(blx,xy.x,xy.y,true)
+	end
+	
+	-- clear carry stack
+	return cp(pl,{carry={}}),
+	 tmp_blx
 end
 
 function next_pl_blx(
-	pl,blx,pl2
+	pl,pl2,blx
 )
 	local inp=pl.input
+	local allblx=all_blocks(
+		blx,pl2
+	)
 	
 	if inp.v>0 then
-		if pl.carry then
-			return try_drop(pl,blx)
+		if #pl.carry>0 then
+			return try_drop(pl,allblx)
 		else
-			return try_pickup(pl,blx)
+			return try_pickup(pl,allblx)
 		end
 	elseif inp.h!=0 
 			or inp.v!=0 then
@@ -479,49 +508,97 @@ function next_dxy(pl,inp)
 	return dx,dy
 end
 
+function all_carry(pl,pl2)
+	local out=pl.carry
+	if pl2!=nil then
+		if is_carrying(pl,pl2) 
+				then
+			out=fpadd(out,{
+				s=0
+			})
+			for i,bl in pairs(pl2.carry)
+					do
+				out=fpadd(out,{
+					s=bl.s
+				})
+			end
+ 	end
+	end
+	return out
+end
+
+function all_blocks(blx,pl)
+	local out=blx
+	if pl!=nil then
+		for i,bl in pairs(pl.carry)
+				do
+			out=set2d(
+				out,pl.x,pl.y-i,true
+			)
+		end
+	end
+	return out
+end
+
 function pl_move(
 		pl,blx,dx,dy,pl2
 )
-	if not is_walkable(blx,
+	-- add pl2 carry to blx
+	local allblx=all_blocks(
+		blx,pl2
+	)
+	local allcarry=all_carry(
+		pl,pl2
+	)
+
+	-- is target space blocked?
+	if not is_walkable(allblx,
 				pl.x+dx,pl.y+dy
 			) then
 		-- no update
 		return pl
 	end
 	
-	if pl.carry 
-			and	not is_walkable(blx,
-				pl.x+dx,pl.y+dy-1
-			) then
-		-- no update
-		return pl
+	-- is taget space have enough
+	-- room for carry stack?
+	for i,obj in pairs(allcarry)
+			do
+		if not is_walkable(allblx,
+ 				pl.x+dx,pl.y+dy-i
+ 			) then
+ 		-- no update
+ 		return pl
+ 	end
+ 	
+ 	if dy<0
+ 			and not is_walkable(allblx,
+ 				pl.x,pl.y-i-1
+ 			) then
+ 		-- no update
+ 		return pl
+ 	end
 	end
 	
-	if pl.carry and dy<0
-			and not is_walkable(blx,
-				pl.x,pl.y-2
-			) then
-		-- no update
-		return pl
-	end
-	
+	--[[
+	-- is pl2 in the way?
 	if pl2!=nil 
-			and pl2.carry
+			and #pl2.carry>0
 			and pl2.x==pl.x+dx
 			and pl2.y==pl.y+dy+1
 			then
 		-- no update
 		return pl
 	end
+	--]]
 	
 	-- move player
 	return pl_fall(cp(pl,{
 		x=pl.x+dx,
 		y=pl.y+dy
-	}),blx,pl2)
+	}),allblx)
 end
 
-function pl_fall(pl,blx,pl2)
+function pl_fall(pl,blx)
 	-- drop player to ground,
 	-- track checkpoint if hit
 	local x=pl.x
@@ -529,18 +606,12 @@ function pl_fall(pl,blx,pl2)
 	
 	local plcp=pl_try_chkpt(pl)
 	
-	if (
-				is_door(x,y+1) 
-				or is_air(blx,x,y+1)
-			) and (
-				pl2==nil
-				or not pl2.carry
-				or pl2.x!=pl.x
-				or pl2.y!=pl.y+2
-			) then
+	--todo: fix carry
+	if is_door(x,y+1) 
+			or is_air(blx,x,y+1) then
 		return pl_fall(cp(plcp,{
 			y=y+1
-		}),blx,pl2)
+		}),blx)
 	else
 		return plcp
 	end
@@ -634,9 +705,27 @@ function proc_evts(state)
 	
 	return tmp_st
 end
+
+function is_carrying(pa,pb)
+	if #pa.carry==0 then
+		return false
+	else
+		return (
+			pa.x==pb.x
+			and carry_top_y(pa)==pb.y
+		)
+	end
+end
+
+function carry_top_y(pl)
+	return pl.y-#pl.carry-1
+end
 -->8
 -- events
 
+carry_1={
+	s=sp_block
+}
 anim_time=10
 
 anims={
@@ -710,6 +799,13 @@ end
 function anim_event(
 	state,evt,x,y,hide,carry
 )
+	if carry==nil then
+		carry={}
+	end
+	if hide==nil then
+		hide=false
+	end
+
 	local last_fr=
 		#anims[evt.n]*anim_time+1
 
@@ -720,13 +816,13 @@ function anim_event(
 				x=x,
 				y=y,
 				hidden=false,
-				carry=(not not carry),
+				carry=carry,
 			})
 		})
 	elseif evt.frame>=last_fr then
 		nstate=cp(state,{
 			pl2=cp(state.pl2,{
-				hidden=(not not hide),
+				hidden=hide,
 			})
 		})
 	else
@@ -1078,17 +1174,17 @@ __gfx__
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
 10202020202020202020202020202020202020202020201010101010102010103010102020202020202020202020202020202020202020202020202020201010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
-10102020202020202020202020202020202020202020202010101010101010102010101020202020202020202020202020202020202020202020202020201010
+10101010101010202020202020202020202020202020202010101010101010102010101020202020202020202020202020202020202020202020202020201010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
-10102020202020202020202020202020202020202020202020202020202020202020101010201010101010101010101010101010101010101010102020101010
+10101010101010202020202020202020202020202020202020202020202020202020101010201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
-20102020202020202020202020202020202020202020202020201010101020202020201010201010101010101010101010101010101010101010102020101010
+20202020202010202020202020202020202020202020202020201010101020202020201010201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
 10101010101010101010101010101010101010101010101010101030101010102020202010501010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101030101010
-10101010101010101010101010334010101010101010101010102020201010102020202020201010101010101010101010101010101010101010102020101010
+10101010101010101010103010334010101010101010101010102020201010102020202020201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010102020202020
-20202020201010101043202020202010102010101010202010101010101010102020202020201010101010101010101010101010101010101010102020101010
+20202020201020101043202020202010102010101010202010101010101010102020202020201010101010101010101010101010101010101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101020202020
 20202020201010101010202020202020102030101010202010303010101010101010101010501010101010101010101010101010101030101010102020101010
 10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010202020
