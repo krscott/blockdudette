@@ -255,9 +255,12 @@ function game_update(state)
 		blocks,pl2.x,pl2.y,pl2
 	)
 	
-	npls,nobjs=next_pls_blx(
-		{pl},objs
+	local npl,nobjs=next_pl_blx(
+		pl,objs
 	)
+	
+	assert(npl)
+	assert(nobjs)
 	
 	local nblx,pl2x,pl2y,_=
 		find_pop2d(
@@ -267,8 +270,6 @@ function game_update(state)
 			end
 		)
 		
-	
-	local npl=npls[1]
 	local npl2=cp(pl2,{
 		x=pl2x,
 		y=pl2y,
@@ -334,7 +335,7 @@ function game_update(state)
 end
 
 function game_draw(state)
-	local pls={state.pl,state.pl2}
+	local pls={state.pl2,state.pl}
 	local cam=state.cam
 	local blx=state.blocks
 	
@@ -516,38 +517,43 @@ function num_carry(o,blx)
 	end
 end
 
-function next_pls_blx(pls,blx)
-	--todo: make functional
-	-- pls and blx not const
-	for i,pl in pairs(pls) do
-		local inp=pl.input
+function next_pl_blx(pl,blx)
+	local inp=pl.input
+	
+	local npl,nblx
+	if inp.v>0 then
+		if is_carry_bl(pl,blx) then
+			nblx=try_drop(pl,blx,pls)
+			npl=pl
+			
+	 	assert(npl)
+	 	assert(nblx)
+		else
+			nblx=try_pickup(pl,blx,pls)
+			npl=pl
+			
+	 	assert(npl)
+	 	assert(nblx)
+		end
+	elseif inp.h!=0
+			or inp.v!=0 then
+		local dx,dy=next_dxy(pl,inp)
+		npl,nblx=pl_move(
+			pl,blx,dx,dy)
 		
-		if inp.v>0 then
- 		if is_carry_bl(pl,blx) then
- 			blx=try_drop(pl,blx,pls)			
-		 	assert(blx)
- 		else
- 			blx=try_pickup(pl,blx,pls)
-		 	assert(blx)
- 		end
-		elseif inp.h!=0
-				or inp.v!=0 then
-			local dx,dy=next_dxy(pl,inp)
-			local npl,nblx=pl_move(
-				pl,blx,dx,dy)
-				
-			pls=cp(pls,{
-				[i]=cp(npl,{
-					right=next_right(pl,inp.h)
-				})
-			})
-			blx=nblx
-	 	assert(pls)
-	 	assert(blx)
- 	end
+ 	assert(npl)
+ 	assert(nblx)
+ else
+ 	npl=pl
+ 	nblx=blx
 	end
 	
-	return pls,blx
+	assert(npl)
+	assert(nblx)
+	
+	return cp(npl,{
+ 		right=next_right(pl,inp.h)
+ 	}),nblx
 end
 
 function next_dxy(pl,inp)
