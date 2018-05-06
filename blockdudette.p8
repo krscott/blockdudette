@@ -177,6 +177,13 @@ sp_pl2=6
 sp_evt0=48
 sp_evt_max=59
 
+-- game objects
+go_bl={
+	s=sp_block,
+	pickup=true,
+	walkable=false,
+}
+
 function game_init(state)
 	local plxy=
 		last(parse_map(sp_pl,sp_air))
@@ -187,7 +194,7 @@ function game_init(state)
 	
 	local blocks=xy_to_2d(
 		parse_map(sp_block,sp_air),
-		function(o) return true end
+		function(o) return go_bl end
 	)
 	
 	local function map_evt(s,x,y)
@@ -206,6 +213,7 @@ function game_init(state)
 		y=plxy.y,
 		right=false, --face right
 		hidden=false,
+		walkable=true,
 		input=input({})
 	})
 	
@@ -243,58 +251,27 @@ function game_update(state)
 		return swap_players(state)
 	end
 	
-	local tmppl2
-	if is_carrying(pl,pl2,blocks)
-		 then
-		-- hacky way to carry
-		--todo: generalize to all pls
-		tmppl2=cp(pl2,{
-			right=pl.right,
-			input=cp(pl2.input,{
-				h=pl.input.h
-			})
-		})
-	else
-		tmppl2=pl2
-	end
-	
-	npls,nblx=next_pls_blx(
-		{pl,tmppl2},blocks
+	local objs=set2d(
+		blocks,pl2.x,pl2.y,pl2
 	)
 	
-	--[[
-	--todo: cleanup
-	local pl2_carried=
-		is_carrying(pl,pl2)
+	npls,nobjs=next_pls_blx(
+		{pl},objs
+	)
 	
-	local tmp_pl,tmp_blx,tmp_pl2=
-		next_pl_blx(pl,pl2,blocks)
-	assert(tmp_pl)
-	assert(tmp_blx)
-	assert(tmp_pl2)
-	
-	tmp_pl2,tmp_blx,tmp_pl=
-		next_pl_blx(
-			tmp_pl2,tmp_pl,tmp_blx
+	local nblx,pl2x,pl2y,_=
+		find_pop2d(
+			nobjs,
+			function(v)
+				return v.s==pl2.s
+			end
 		)
-	assert(tmp_pl)
-	assert(tmp_blx)
-	assert(tmp_pl2)
-	
-	local nblx=tmp_blx
-	local npl=tmp_pl
-
-	debug("plc",pl2_carried)	
-	if pl2_carried then
-		tmp_pl2=cp(tmp_pl2,{
-			x=npl.x,
-			y=carry_top_y(npl)
-		})
-	end
-	--]]
+		
 	
 	local npl=npls[1]
-	local npl2=cp(npls[2],{
+	local npl2=cp(pl2,{
+		x=pl2x,
+		y=pl2y,
 		input=input({})
 	})
 	assert(npl)
@@ -397,7 +374,7 @@ function game_draw(state)
 	
 	-- block sprites
 	for x,y,v in all2d(blx) do
-		spr(sp_block,g2w(x),g2w(y))
+		spr(v.s,g2w(x),g2w(y))
 	end
 end
 
@@ -406,10 +383,14 @@ function g2w(g)
 end
 
 function is_air(blx,x,y)
-	assert(blx)
 	local sp=mget(x,y)
-	return fget(sp,0)
-		and get2d(blx,x,y)==nil
+	return (
+		fget(sp,0)	
+		and (
+ 		blx==nil 
+ 		or get2d(blx,x,y)==nil
+		)
+	)
 end
 
 function is_door(x,y)
@@ -426,9 +407,11 @@ function is_pl(pls,x,y)
 end
 
 function is_walkable(blx,x,y)
-	return get2d(blx,x,y)==nil
-		and (
-			is_air(blx,x,y)
+	local bl=get2d(blx,x,y)
+	return (
+			bl==nil or bl.walkable
+		)	and (
+			is_air(nil,x,y)
 			or is_door(x,y)
 		)
 end
@@ -459,8 +442,9 @@ function try_pickup(pl,blx,pls)
 	end
 	
 	local pu_x=pickup_x(pl)
+	local bl=get2d(blx,pu_x,pl.y)
 	
-	if get2d(blx,pu_x,pl.y)
+	if bl and bl.pickup
 			and is_air(blx,pu_x,pl.y-1)
 			and is_air(blx,pl.x,pl.y-1)
 			and 
@@ -470,22 +454,17 @@ function try_pickup(pl,blx,pls)
 			clr2d(blx,pu_x,pl.y),
 			pl.x,
 			pl.y-1,
-			true
+			go_bl
 		)
 	else
 		return blx
 	end
 end
 
-function try_drop(pl,blx,pls)
+function try_drop(pl,blx)
 	local ncarry=num_carry(pl,blx)
 
 	if ncarry==0	then
-		return blx
-	end
-	
-	if is_carry_any(pl,pls,blx)
-			then
 		return blx
 	end
 	
@@ -505,14 +484,14 @@ function try_drop(pl,blx,pls)
 	-- drop each block one by one
 	local tmp_blx=blx
 	for i=1,ncarry	do
-		local bl=fall(tmp_blx,pls,{
+		local o=fall(tmp_blx,pls,{
 			x=pu_x,y=pl.y-i
 		})
+		local bl=
+			get2d(tmp_blx,pl.x,pl.y-i)
 		tmp_blx=set2d(
 			clr2d(tmp_blx,pl.x,pl.y-i),
-			bl.x,
-			bl.y,
-			true
+			o.x,o.y,bl
 		)
 	end
 	
@@ -571,37 +550,6 @@ function next_pls_blx(pls,blx)
 	return pls,blx
 end
 
---[[
-function next_pl_blx(
-	pl,pl2,blx
-)
-	local inp=pl.input
-	local allblx=all_blocks(
-		blx,pl2
-	)
-	
-	if inp.v>0 then
-		if #pl.carry>0 then
-			return try_drop(pl,allblx)
-		else
-			return try_pickup(pl,allblx)
-		end
-	elseif inp.h!=0 
-			or inp.v!=0 then
-		local dx,dy=next_dxy(pl,inp)
-		local npl=pl_move(
-			pl,blx,dx,dy,pl2)
-		
-		return cp(npl,{
- 		right=next_right(pl,inp.h)
- 	}),blx
- else
- 	return pl,blx
-	end
-	
-end
---]]
-
 function next_dxy(pl,inp)
 	-- find dx,dy based on input.
 	-- result needs to be checked
@@ -618,42 +566,6 @@ function next_dxy(pl,inp)
 	
 	return dx,dy
 end
-
---[[
-function all_carry(pl,pl2)
-	local out=pl.carry
-	if pl2!=nil then
-		if is_carrying(pl,pl2) 
-				then
-			out=fpadd(out,{
-				s=0
-			})
-			for i,bl in pairs(pl2.carry)
-					do
-				out=fpadd(out,{
-					s=bl.s
-				})
-			end
- 	end
-	end
-	return out
-end
---]]
-
---[[
-function all_blocks(blx,pl)
-	local out=blx
-	if pl!=nil then
-		for i,bl in pairs(pl.carry)
-				do
-			out=set2d(
-				out,pl.x,pl.y-i,true
-			)
-		end
-	end
-	return out
-end
---]]
 
 function pl_move(
 		pl,blx,dx,dy
@@ -690,18 +602,6 @@ function pl_move(
  	end
 	end
 	
-	--[[
-	-- is pl2 in the way?
-	if pl2!=nil 
-			and #pl2.carry>0
-			and pl2.x==pl.x+dx
-			and pl2.y==pl.y+dy+1
-			then
-		-- no update
-		return pl
-	end
-	--]]
-	
 	-- move player
 	local npl=pl_fall(cp(pl,{
 		x=pl.x+dx,
@@ -710,9 +610,11 @@ function pl_move(
 	
 	-- move blocks
 	for i=1,ncarry do
+		local bl=
+			get2d(blx,pl.x,pl.y-i)
 		blx=clr2d(blx,pl.x,pl.y-i)
 		blx=set2d(
-			blx,npl.x,npl.y-i,true
+			blx,npl.x,npl.y-i,bl
 		)
 	end
 	
@@ -728,8 +630,11 @@ function pl_fall(pl,blx)
 	local plcp=pl_try_chkpt(pl)
 	
 	--todo: fix carry
+	local bl=get2d(blx,x,y+1)
 	if is_door(x,y+1) 
-			or is_air(blx,x,y+1) then
+			or is_air(blx,x,y+1) 
+			or (bl and bl.walkable)
+			then
 		return pl_fall(cp(plcp,{
 			y=y+1
 		}),blx)
@@ -1237,6 +1142,24 @@ function all2d(a)
 				arr[i][3]
 		end
 	end
+end
+
+function find2d(a,f)
+	for i,ai in pairs(a) do
+		for j,v in pairs(ai) do
+			if v!=nil then
+				if f(v) then
+					return i,j,v
+				end
+			end
+		end
+	end
+	return nil
+end
+
+function find_pop2d(a,f)
+	local i,j,v=find2d(a,f)
+	return clr2d(a,i,j),i,j,v
 end
 
 function xy_to_2d(arr, f)
