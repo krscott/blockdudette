@@ -5,10 +5,12 @@ __lua__
 
 -- filename to record inputs.
 -- set to nil to disable
+--[[
 rec_inp_fn="inputs.txt"
 if rec_inp_fn then
 	printh("",rec_inp_fn,true)
 end
+--]]
 
 -- loop functions
 function _init()
@@ -639,7 +641,9 @@ function next_pl_blx(pl,blx)
 		end
 	elseif inp.h!=0
 			or inp.v!=0 then
-		local dx,dy=next_dxy(pl,inp)
+		local dx,dy=next_dxy(
+			pl,inp,blx
+		)
 		npl,nblx=pl_move(
 			pl,blx,dx,dy)
 		
@@ -658,18 +662,23 @@ function next_pl_blx(pl,blx)
  	}),nblx
 end
 
-function next_dxy(pl,inp)
+function next_dxy(pl,inp,blx)
 	-- find dx,dy based on input.
 	-- result needs to be checked
 	-- for collision
-	local dx,dy
 	
 	if inp.v<0 then
-		dx=pl.right and 1 or -1
-		dy=-1
+		local dx=pl.right and 1 or -1
+	
+		if not 
+				is_air(blx,pl.x+dx,pl.y)
+				then
+			return dx,-1
+		else
+			return 0,0
+		end
 	else
-		dx=inp.h
-		dy=0
+		return inp.h,0
 	end
 	
 	return dx,dy
@@ -1008,7 +1017,7 @@ event_f={
 	
 	[9]=function (state,evt)
 		return text_event(state,evt,{
-			"press ⬆️ (up) to step up"
+			"press ⬆️ (up) to climb"
 		})
 	end,
 	
