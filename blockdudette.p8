@@ -1,18 +1,39 @@
 pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
--- main
+-- blockdudette
+-- by kris scott
 
--- filename to record inputs.
+-- developed as a study of
+-- functional programming.
+
+-- record inputs
 -- set to nil to disable
---[[
 rec_inp_fn="inputs.txt"
 if rec_inp_fn then
+	-- clear file
 	printh("",rec_inp_fn,true)
 end
---]]
 
--- loop functions
+-- button inputs
+function btn_spec()
+	local spec=fpmap(btnp,{
+		[0]=0,1,2,3,4,5
+	})
+	if any(spec)
+			then
+ 	local str=arr_to_str(
+	 	spec,true
+	 )
+ 	debug("rec",str)
+		if rec_inp_fn then
+ 		printh(str..",",rec_inp_fn)
+ 	end
+	end
+	return spec
+end
+
+-- gameloop functions
 function _init()
 	cls()
 	
@@ -33,38 +54,20 @@ function _init()
 		game_init,
 		win_init,
 		{
- 		mode="title",
- 		dmap={}
+ 		mode="title"
  	}
 	)
 	
 	assert(state!=nil)
 end
 
-function btnp_rec(i)
-	local out=btnp(i)
-	if rec_inp_fn and out then
-		--add(recorded_inputs,i)
-		debug("rec",i)
-		printh(tostr(i),rec_inp_fn)
-	end
-	return out
-end
-
 function input(spec)
-	local any=false
-	
-	local function btnp2(i)
-		if spec!=nil then
-			return spec[i]
-		else
-			return btnp_rec(i)
-		end
+	if spec==nil then
+		spec=btn_spec()
 	end
 	
 	local function axis(i,v)
-		if btnp2(i) then
-			any=true
+		if spec[i] then
 			return v
 		else
 			return 0
@@ -72,21 +75,30 @@ function input(spec)
 	end
 	
 	local function bool(i)
-		if btnp2(i) then
-			any=true
+		if spec[i] then
 			return true
 		else
 			return false
 		end
 	end
 	
-	return {
+	out={
 		h=axis(⬅️,-1)+axis(➡️,1),
 		v=axis(⬆️,-1)+axis(⬇️,1),
 		o=bool(🅾️),
 		x=bool(❎),
-		any=any,
 	}
+	
+	if spec==nil and rec_inp_fn
+			then
+		local str=obj_to_str(out)
+		debug("rec",str)
+		if any then
+			printh(str..",",rec_inp_fn)
+		end
+	end
+	
+	return out
 end
 
 function parse_mapf(f,r)
@@ -115,12 +127,6 @@ function parse_map(s,r)
 	return parse_mapf(f,r)
 end
 
-function update_map(dmap)
-	for a in all(dmap) do
-		mset(a.x,a.y,a.s)
-	end
-end
-
 function reload_map()
 	reload(0x2000,0x2000,0x1000)
 end
@@ -134,16 +140,6 @@ function _update60()
 		[state.mode](state)
 	assert(state!=nil)
 	
-	--[[
-	if last_mode!=state.mode then
- 	state=state_init_funcs
- 		[state.mode](state)
-		assert(state!=nil)
-	end
-	--]]
-	
-	update_map(state.dmap)
-	
 	if state.reload_map==true then
 		reload_map()
 	end
@@ -156,7 +152,6 @@ function _update60()
 			state.cam.y
 		)
 	end
-	state.dmap={}
 end
 
 function _draw()
@@ -1206,7 +1201,7 @@ end
 -- debug
 
 -- set to false to disable
-debug_en=false
+debug_en=true
 
 debug_s={}
 
@@ -1273,7 +1268,8 @@ function title_draw(state)
 	draw_event_text({
 		"by kris scott",
 		"",
-		"a tribute to b. sterner's",
+		"a tribute to ",
+		"brandon sterner's",
 		"block dude",
 		"",
 		"press ❎ (x) to start",
@@ -1281,6 +1277,38 @@ function title_draw(state)
 end
 -->8
 -- fp helpers
+
+-- object to string
+function obj_to_str(obj)
+	local str="{"
+	for k,v in pairs(obj) do
+		str=(
+			str
+			..tostr(k)
+			.."="
+			..tostr(v)
+			..","
+		)
+	end
+	return str.."}"
+end
+
+-- array to string
+function arr_to_str(arr,zero)
+	local str="{"
+	if zero then
+		-- zero-index
+		str=str.."[0]="
+ 	for i=0,#arr do
+ 		str=str..tostr(arr[i])..","
+ 	end
+	else
+ 	for i=1,#arr do
+ 		str=str..tostr(arr[i])..","
+ 	end
+	end
+	return str.."}"
+end
 
 -- copy and update objects
 function cp(...)
@@ -1446,13 +1474,22 @@ end
 function last(arr)
 	return arr[#arr]
 end
+
+function any(obj)
+	for k,v in pairs(obj) do
+		if v then
+			return true
+		end
+	end
+	return false
+end
+
 -->8
 -- notes
 --[[
 
 todo
 ----
-- title screen
 
 
 sprite flags
