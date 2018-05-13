@@ -9,7 +9,8 @@ __lua__
 
 -- record inputs
 -- set to nil to disable
-rec_inp_fn="inputs.txt"
+rec_inp_fn=nil
+--rec_inp_fn="inputs.txt"
 if rec_inp_fn then
 	-- clear file
 	printh("",rec_inp_fn,true)
@@ -52,6 +53,9 @@ function _init()
 		win=win_draw,
 	}
 	
+	-- call all init functions.
+	-- inits should only ever be
+	-- called once.
 	state=compose(
 		title_init,
 		game_init,
@@ -142,10 +146,6 @@ function _update60()
 	state=state_update_funcs
 		[state.mode](state)
 	assert(state!=nil)
-	
-	if state.reload_map==true then
-		reload_map()
-	end
 	
 	if state.cam == nil then
 		camera(0,0)
@@ -1222,22 +1222,24 @@ function debug_clr(k)
 end
 
 function draw_debug()
-	local y=debug_y
-	
-	camera()
-	
-	for k,v in pairs(debug_s) do
-		if v!=nil then
-			print(k..":"..tostr(v),
-				debug_x,y,debug_color)
-			y+=6
-		end
-	end
-	
-	if y>debug_y then
-		-- place cursor below debug
-		print("",0,y)
-	end
+	if debug_en then
+ 	local y=debug_y
+ 	
+ 	camera()
+ 	
+ 	for k,v in pairs(debug_s) do
+ 		if v!=nil then
+ 			print(k..":"..tostr(v),
+ 				debug_x,y,debug_color)
+ 			y+=6
+ 		end
+ 	end
+ 	
+ 	if y>debug_y then
+ 		-- place cursor below debug
+ 		print("",0,y)
+ 	end
+ end
 end
 -->8
 -- title state
