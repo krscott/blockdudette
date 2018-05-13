@@ -17,11 +17,14 @@ end
 
 -- button inputs
 function btn_spec()
+
+ -- 0 or 1? make up your mind!!
 	local spec=fpmap(btnp,{
 		[0]=0,1,2,3,4,5
 	})
-	if any(spec)
-			then
+	
+	--if any(spec)
+	--		then
  	local str=arr_to_str(
 	 	spec,true
 	 )
@@ -29,7 +32,7 @@ function btn_spec()
 		if rec_inp_fn then
  		printh(str..",",rec_inp_fn)
  	end
-	end
+	--end
 	return spec
 end
 
@@ -909,7 +912,6 @@ anims={
 	},
 	[3]={
 		9,9,9,9,9,9,9,9,9,9,9,9,9,9,
-		9,9,9,9,9,9,9,9,9,9,9,9,9,9,
 		0,3,0,0,0,1,1,1,1,1,9,9,9,3,
 		9,9,9,9,0,0,0,0,0,0,0,0,1,3,
 		0,0,0,3,1
@@ -1195,13 +1197,13 @@ end
 
 function win_draw(state)
 	game_draw(state)
-	draw_event_text({"you win!"})
+	draw_event_text({"the end"})
 end
 -->8
 -- debug
 
 -- set to false to disable
-debug_en=true
+debug_en=false
 
 debug_s={}
 
