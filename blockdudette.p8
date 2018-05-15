@@ -281,14 +281,7 @@ function game_init(state)
 		blocks=blocks,
 		blocks_reset=blocks,
 		triggers=triggers,
-		events={
-			[7]={
-				n=7,
-				frame=0,
-				x=0,
-				y=0
-			}
-		},
+		--events, -- defined in title
 		chkpt_state=nil,
 		chkpts_hit={},
 		coop=false,
@@ -1304,7 +1297,15 @@ end
 function title_update(state)
 	if state.input.x then
 		return cp(state,{
-			mode="game"
+			mode="game",
+ 		events={
+ 			[7]={
+ 				n=7,
+ 				frame=0,
+ 				x=0,
+ 				y=0
+ 			}
+ 		},
 		})
 	end
 	
@@ -1314,7 +1315,8 @@ function title_update(state)
 		return cp(
 			load_state(state),
 			{
- 			mode="game"
+ 			mode="game",
+ 			events={},
  		}
 		)
 	end
@@ -1324,8 +1326,8 @@ end
 
 function title_draw(state)
 	cls(cl_light)
-	spr(sp_pl,60,68)
-	spr(sp_block,60,60)
+	spr(sp_pl,60,70)
+	spr(sp_block,60,62)
 
 	local scale=3.3
 	sspr(
@@ -1340,12 +1342,12 @@ function title_draw(state)
 		"brandon sterner's",
 		"block dude",
 		"",
-		"press ❎ (x) to start",
+		"❎ (x) new game ",
 	}
 	
 	if state.has_save_data then
 		add(txts,
-			"press 🅾️ (z) to continue"
+			"🅾️ (z) continue "
 		)
 	end
 
