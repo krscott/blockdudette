@@ -222,6 +222,11 @@ end
 
 function load_state(state)
 	local lst=read_persist()
+	
+	if lst==nil then
+		return state
+	end
+	
 	return cp(state,{
 		pl=cp(state.pl,lst.pl),
 		pl2=cp(state.pl2,lst.pl2),
@@ -261,6 +266,9 @@ function game_init(state)
 		walkable=true,
 		input=input({})
 	})
+	
+	local has_save_data=
+		read_persist()!=nil
 
 	return cp(state,{
 		-- init player object
@@ -285,6 +293,7 @@ function game_init(state)
 		chkpts_hit={},
 		coop=false,
 		auto=false,
+		has_save_data=has_save_data,
 	})
 end
 
@@ -1237,7 +1246,7 @@ end
 -- debug
 
 -- set to false to disable
-debug_en=true
+debug_en=false
 
 debug_s={}
 
@@ -1289,7 +1298,9 @@ function title_update(state)
 		})
 	end
 	
-	if state.input.o then
+	if state.input.o
+			and state.has_save_data
+			then
 		return cp(
 			load_state(state),
 			{
@@ -1311,8 +1322,8 @@ function title_draw(state)
 		0,32,36,15,
 		5,4,36*scale,15*scale
 	)
-
-	draw_event_text({
+	
+	local txts={
 		"by kris scott",
 		"",
 		"a tribute to ",
@@ -1320,8 +1331,15 @@ function title_draw(state)
 		"block dude",
 		"",
 		"press ❎ (x) to start",
-		"press 🅾️ (z) to continue",
-	})
+	}
+	
+	if state.has_save_data then
+		add(txts,
+			"press 🅾️ (z) to continue"
+		)
+	end
+
+	draw_event_text(txts)
 end
 -->8
 -- fp helpers
@@ -1769,6 +1787,8 @@ function write_persist(obj)
 	
 	-- null terminate
 	poke(0x5300+#str,0)
+	
+	cstore()
 end
 
 function read_persist()
@@ -1780,6 +1800,11 @@ function read_persist()
 		end
 		str=str..chr(x)
 	end
+	
+	if str=="" then
+		return nil
+	end
+	
 	return deserialize(str)
 end
 
