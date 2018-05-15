@@ -2,7 +2,7 @@ pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
 -- blockdudette
--- v0.9
+-- v0.9.1
 -- by kris scott
 
 -- developed as a study of
@@ -32,7 +32,7 @@ function btn_spec()
  	local str=arr_to_str(
 	 	spec,true
 	 )
- 	debug("rec",str)
+ 	--debug("rec",str)
 		if rec_inp_fn then
  		printh(str..",",rec_inp_fn)
  	end
@@ -102,7 +102,7 @@ function input(spec)
 	if spec==nil and rec_inp_fn
 			then
 		local str=obj_to_str(out)
-		debug("rec",str)
+		--debug("rec",str)
 		if any then
 			printh(str..",",rec_inp_fn)
 		end
@@ -201,6 +201,33 @@ go_bl={
 }
 
 no_input=input({})
+
+function save_state(state)	
+	local pldel={
+		"input","chkpt"
+	}
+	local sst={
+		pl=fpdel(state.pl,pldel),
+		pl2=fpdel(state.pl2,pldel),
+		coop=state.coop,
+	}
+	
+	if debug_en then
+		local ser=serialize(sst)
+		debug("save file size",#ser)
+	end
+	
+	write_persist(sst)
+end
+
+function load_state(state)
+	local lst=read_persist()
+	return cp(state,{
+		pl=cp(state.pl,lst.pl),
+		pl2=cp(state.pl2,lst.pl2),
+		coop=lst.coop
+	})
+end
 
 function game_init(state)
 	local plxy=
@@ -351,14 +378,18 @@ function game_update(state)
  		)
 
 			if ncs==chkpt_all then
+				local cps=cp(
+  			fpdel(
+   			nstate,"chkpt_state"
+   		),{
+   			chkpts_hit=nchkpts_hit
+  			}
+  		)
+  		
+  		save_state(cps)
+  		
   		return cp(nstate,{
-  			chkpt_state=cp(
-   			fpdel(
-    			nstate,"chkpt_state"
-    		),{
-    			chkpts_hit=nchkpts_hit
-   			}
-   		),
+  			chkpt_state=cps,
    		chkpts_hit=nchkpts_hit
    	})
    else
@@ -445,7 +476,7 @@ function game_draw(state)
 				and not evt.done
 				and evt.text
 				then
-			debug("text",evt.text)
+			--debug("text",evt.text)
 			draw_event_text(evt.text)
 		end
 	end
@@ -1206,7 +1237,7 @@ end
 -- debug
 
 -- set to false to disable
-debug_en=false
+debug_en=true
 
 debug_s={}
 
@@ -1257,6 +1288,15 @@ function title_update(state)
 			mode="game"
 		})
 	end
+	
+	if state.input.o then
+		return cp(
+			load_state(state),
+			{
+ 			mode="game"
+ 		}
+		)
+	end
 
 	return state
 end
@@ -1280,6 +1320,7 @@ function title_draw(state)
 		"block dude",
 		"",
 		"press ❎ (x) to start",
+		"press 🅾️ (z) to continue",
 	})
 end
 -->8
@@ -1329,10 +1370,21 @@ function cp(...)
 end
 
 -- remove key from table
-function fpdel(tbl,key)
+function fpdel(tbl,keys)
+	if type(keys)!="table" then
+		keys={keys,}
+	end
+
  local	obj = {}
+ 
 	for k,v in pairs(tbl) do
-		if k!=key then
+		local skip=false
+		for dk in all(keys) do
+			if k==dk then
+				skip=true
+			end
+		end
+		if not skip then
 			obj[k] = v
 		end
 	end
@@ -1490,7 +1542,20 @@ end
 -- by kris scott
 --todo: handle whitespace
 
-assert_if_too_big=true
+
+-- error function
+function modalerr(msg)
+	--cls()
+	print("error:")
+	print(msg)
+	print("")
+	print(
+		"press ❎ (x) to continue"
+	)
+	while not btn(❎) do
+		flip()
+	end
+end
 
 
 -- build character functions
@@ -1683,11 +1748,15 @@ function write_persist(obj)
 	local str=serialize(obj)
 	
 	if #str >= 0xff then
-		print("save file too big!")
-		print("bytes:"..#str)
-		if assert_if_too_big then
- 		assert(false)
- 	end
+		cls()
+		for k,v in pairs(obj) do
+			local s=serialize(v)
+			print(k..":"..#s)
+		end
+		print("")
+		modalerr(
+			"save file too big:"..#str
+		)
 		return
 	end
 	
