@@ -289,7 +289,7 @@ function game_init(state)
 				y=0
 			}
 		},
-		chkpt_state={},
+		chkpt_state=nil,
 		chkpts_hit={},
 		coop=false,
 		auto=false,
@@ -357,7 +357,8 @@ function game_update(state)
  	})
  )
 
-	if pl.chkpt!=npl.chkpt then
+	if nstate.chkpt_state==nil
+			or pl.chkpt!=npl.chkpt then
 		local chkpt_status=get2d(
 			nstate.chkpts_hit,
 			npl.chkpt.x,npl.chkpt.y
@@ -1561,6 +1562,10 @@ end
 --todo: handle whitespace
 
 
+persist_addr=0x5e00
+persist_end=0x5eff
+
+
 -- error function
 function modalerr(msg)
 	--cls()
@@ -1691,6 +1696,8 @@ function deserialize(str,i)
 		i=1
 	end
 	
+	assert(i<=#str)
+	
 	if sub(str,i,i+3)=="true" then
 		return true,i+4
 	elseif sub(str,i,i+4)=="false"
@@ -1780,20 +1787,19 @@ function write_persist(obj)
 	
 	for i=1,#str do
 		poke(
-			0x5300+i-1,
+			persist_addr+i-1,
 			ord(sub(str,i,i))
 		)
 	end
 	
 	-- null terminate
-	poke(0x5300+#str,0)
-	
-	cstore()
+	poke(persist_addr+#str,0)
 end
 
 function read_persist()
 	local str=""
-	for addr=0x5300,0x53ff do
+	for addr=persist_addr,
+			persist_end do
 		local x=peek(addr)
 		if x==0 then
 			break
