@@ -2,10 +2,13 @@ pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
 -- blockdudette
+-- v0.9
 -- by kris scott
 
 -- developed as a study of
 -- functional programming.
+
+cartdata("kris_blockdudette_0")
 
 -- record inputs
 -- set to nil to disable
@@ -23,7 +26,7 @@ function btn_spec()
 	local spec=fpmap(btnp,{
 		[0]=0,1,2,3,4,5
 	})
-	
+
 	--if any(spec)
 	--		then
  	local str=arr_to_str(
@@ -40,19 +43,19 @@ end
 -- gameloop functions
 function _init()
 	cls()
-	
+
 	state_update_funcs={
 		title=title_update,
 		game=game_update,
 		win=win_update,
 	}
-	
+
 	state_draw_funcs={
 		title=title_draw,
 		game=game_draw,
 		win=win_draw,
 	}
-	
+
 	-- call all init functions.
 	-- inits should only ever be
 	-- called once.
@@ -64,7 +67,7 @@ function _init()
  		mode="title"
  	}
 	)
-	
+
 	assert(state!=nil)
 end
 
@@ -72,7 +75,7 @@ function input(spec)
 	if spec==nil then
 		spec=btn_spec()
 	end
-	
+
 	local function axis(i,v)
 		if spec[i] then
 			return v
@@ -80,7 +83,7 @@ function input(spec)
 			return 0
 		end
 	end
-	
+
 	local function bool(i)
 		if spec[i] then
 			return true
@@ -88,14 +91,14 @@ function input(spec)
 			return false
 		end
 	end
-	
+
 	out={
 		h=axis(⬅️,-1)+axis(➡️,1),
 		v=axis(⬆️,-1)+axis(⬇️,1),
 		o=bool(🅾️),
 		x=bool(❎),
 	}
-	
+
 	if spec==nil and rec_inp_fn
 			then
 		local str=obj_to_str(out)
@@ -104,7 +107,7 @@ function input(spec)
 			printh(str..",",rec_inp_fn)
 		end
 	end
-	
+
 	return out
 end
 
@@ -140,13 +143,13 @@ end
 
 function _update60()
 	local last_mode=state.mode
-	
+
 	state.input=input()
 
 	state=state_update_funcs
 		[state.mode](state)
 	assert(state!=nil)
-	
+
 	if state.cam == nil then
 		camera(0,0)
 	else
@@ -160,7 +163,7 @@ end
 function _draw()
 	state_draw_funcs
 		[state.mode](state)
-	
+
 	draw_debug()
 end
 
@@ -202,18 +205,18 @@ no_input=input({})
 function game_init(state)
 	local plxy=
 		last(parse_map(sp_pl,sp_air))
-	
+
 	local pl2xy=last(
 		parse_map(sp_pl2,sp_air)
 	)
-	
+
 	local blocks=xy_to_2d(
 		parse_map(sp_block,sp_air),
 		function(o) return go_bl end
 	)
-	
+
 	local function map_evt(s,x,y)
-		if s>=sp_evt0 
+		if s>=sp_evt0
 				and s<=sp_evt_max	then
 			return {x=x,y=y,n=s-sp_evt0}
 		end
@@ -221,7 +224,7 @@ function game_init(state)
 	local triggers=xy_to_2d(
 		parse_mapf(map_evt,sp_air)
 	)
-	
+
 	local pl=pl_set_chkpt({
 		s=sp_pl,
 		x=plxy.x,
@@ -231,7 +234,7 @@ function game_init(state)
 		walkable=true,
 		input=input({})
 	})
-	
+
 	return cp(state,{
 		-- init player object
 		pl=pl,
@@ -264,7 +267,7 @@ function game_update(state)
 		and no_input
 		or state.input
 	)
-		
+
 	local pl=cp(state.pl,{
 		input=inp
 	})
@@ -275,12 +278,12 @@ function game_update(state)
 		return cp(state,
 			state.chkpt_state)
 	end
-	
+
 	if inp.o	and state.coop then
 		local chkpt=get2d(
 			state.chkpts_hit,pl2.x,pl2.y
 		)
-		
+
 		if chkpt==nil
 				or chkpt==chkpt_none
 				or chkpt==chkpt_all
@@ -288,23 +291,23 @@ function game_update(state)
 			return swap_players(state)
 		end
 	end
-	
+
 	local npl,npl2,nblx=
 		next_pls_blx(pl,pl2,blocks)
-	
+
 	assert(npl)
 	assert(npl2)
 	assert(nblx)
-	
+
 	debug("pl2",
 		npl2.x..","..npl2.y)
-	
+
 	local nevts=trig_evt(
 		state.triggers,
 		npl,
 		state.events
 	)
-	
+
 	local nstate=proc_evts(
 		cp(state,{
  		pl=npl,
@@ -317,16 +320,16 @@ function game_update(state)
  		},
  	})
  )
- 
+
 	if pl.chkpt!=npl.chkpt then
 		local chkpt_status=get2d(
 			nstate.chkpts_hit,
 			npl.chkpt.x,npl.chkpt.y
 		)
-		
-		if chkpt_status!=chkpt_all 
+
+		if chkpt_status!=chkpt_all
 				then
-			
+
 			-- next checkpoint status
 			local ncs
 			if state.coop then
@@ -340,13 +343,13 @@ function game_update(state)
  		else
  			ncs=chkpt_all
  		end
-		
+
 			local nchkpts_hit=set2d(
  			nstate.chkpts_hit,
  			npl.chkpt.x,npl.chkpt.y,
  			ncs
  		)
-		
+
 			if ncs==chkpt_all then
   		return cp(nstate,{
   			chkpt_state=cp(
@@ -369,7 +372,7 @@ function game_update(state)
   else
   	return nstate
   end
-  
+
 	else
 		-- do nothing
 		return nstate
@@ -381,13 +384,13 @@ function game_draw(state)
 	local cam=state.cam
 	local blx=state.blocks
 	local chpts=state.chkpts_hit
-	
+
 	cls(cl_light)
 	map(0,0,0,0,128,64)
-	
+
 	-- event sprites (debug)
 	if debug_en then
- 	for x,y,v in 
+ 	for x,y,v in
  			all2d(state.triggers) do
  		if state.events[v.n]==nil
  				then
@@ -397,7 +400,7 @@ function game_draw(state)
   	end
  	end
  end
-	
+
 	-- open door sprites
 	for x,y,v in all2d(chpts) do
 		if v==chkpt_all then
@@ -406,7 +409,7 @@ function game_draw(state)
  		)
  	end
 	end
-	
+
 	for pl in all(pls) do
   if not pl.hidden then
  		-- player sprite
@@ -416,7 +419,7 @@ function game_draw(state)
   		1,1,
   		pl.right
   	)
-  	
+
   	-- carry block sprite
   	for i=1,num_carry(pl,blx)
   			do
@@ -427,19 +430,19 @@ function game_draw(state)
   	end
   end
 	end
-	
+
 	-- block sprites
 	for x,y,v in all2d(blx) do
 		spr(v.s,g2w(x),g2w(y))
 	end
-	
+
 	camera()
-	
+
 	-- text
 	for i=0,11 do
 		local evt=state.events[i]
-		if evt 
-				and not evt.done 
+		if evt
+				and not evt.done
 				and evt.text
 				then
 			debug("text",evt.text)
@@ -456,14 +459,14 @@ function next_pls_blx(
 	local objs=set2d(
 		blx,pl2.x,pl2.y,pl2
 	)
-	
+
 	local npl,nobjs=next_pl_blx(
 		pl,objs
 	)
-	
+
 	assert(npl)
 	assert(nobjs)
-	
+
 	local nblx,pl2x,pl2y,_=
 		find_pop2d(
 			nobjs,
@@ -471,13 +474,13 @@ function next_pls_blx(
 				return v.s==pl2.s
 			end
 		)
-		
+
 	local npl2=cp(pl2,{
 		x=pl2x,
 		y=pl2y,
 		input=no_input
 	})
-	
+
 	return npl,npl2,nblx
 end
 
@@ -488,9 +491,9 @@ end
 function is_air(blx,x,y)
 	local sp=mget(x,y)
 	return (
-		fget(sp,0)	
+		fget(sp,0)
 		and (
- 		blx==nil 
+ 		blx==nil
  		or get2d(blx,x,y)==nil
 		)
 	)
@@ -523,17 +526,17 @@ function fall(blx,pls,o)
 	-- drop object to ground
 	local x=o.x
 	local y=o.y
-	
+
 	-- stop if not air
 	if not is_air(blx,x,y+1) then
 		return o
 	end
-	
+
 	-- stop if hit player
 	if is_pl(pls,x,y+1) then
 		return o
 	end
-	
+
 	-- continue falling
 	return fall(blx,pls,
 		cp(o,{y=y+1}))
@@ -543,14 +546,14 @@ function try_pickup(pl,blx,pls)
 	if is_carry_bl(pl,blx) then
 		return blx
 	end
-	
+
 	local pu_x=pickup_x(pl)
 	local bl=get2d(blx,pu_x,pl.y)
-	
+
 	if bl and bl.pickup
 			and is_air(blx,pu_x,pl.y-1)
 			and is_air(blx,pl.x,pl.y-1)
-			and 
+			and
 				not is_pl(pls,pu_x,pl.y-1)
 			then
 		return set2d(
@@ -570,20 +573,20 @@ function try_drop(pl,blx)
 	if ncarry==0	then
 		return blx
 	end
-	
+
 	local pu_x=pickup_x(pl)
-	
+
 	-- check if enough room for
 	-- entire stack
 	for i=1,ncarry	do
-  if not 
+  if not
   			is_air(blx,pu_x,pl.y-i)
   		then
   	-- can't drop
   	return blx
   end
 	end
-	
+
 	-- drop each block one by one
 	local tmp_blx=blx
 	for i=1,ncarry	do
@@ -597,7 +600,7 @@ function try_drop(pl,blx)
 			o.x,o.y,bl
 		)
 	end
-	
+
 	return tmp_blx
 end
 
@@ -621,19 +624,19 @@ end
 
 function next_pl_blx(pl,blx)
 	local inp=pl.input
-	
+
 	local npl,nblx
 	if inp.v>0 then
 		if is_carry_bl(pl,blx) then
 			nblx=try_drop(pl,blx,pls)
 			npl=pl
-			
+
 	 	assert(npl)
 	 	assert(nblx)
 		else
 			nblx=try_pickup(pl,blx,pls)
 			npl=pl
-			
+
 	 	assert(npl)
 	 	assert(nblx)
 		end
@@ -644,17 +647,17 @@ function next_pl_blx(pl,blx)
 		)
 		npl,nblx=pl_move(
 			pl,blx,dx,dy)
-		
+
  	assert(npl)
  	assert(nblx)
  else
  	npl=pl
  	nblx=blx
 	end
-	
+
 	assert(npl)
 	assert(nblx)
-	
+
 	return cp(npl,{
  		right=next_right(pl,inp.h)
  	}),nblx
@@ -664,11 +667,11 @@ function next_dxy(pl,inp,blx)
 	-- find dx,dy based on input.
 	-- result needs to be checked
 	-- for collision
-	
+
 	if inp.v<0 then
 		local dx=pl.right and 1 or -1
-	
-		if not 
+
+		if not
 				is_air(blx,pl.x+dx,pl.y)
 				then
 			return dx,-1
@@ -678,7 +681,7 @@ function next_dxy(pl,inp,blx)
 	else
 		return inp.h,0
 	end
-	
+
 	return dx,dy
 end
 
@@ -695,9 +698,9 @@ function pl_move(
 		-- no update
 		return pl,blx
 	end
-	
+
 	local ncarry=num_carry(pl,blx)
-	
+
 	-- is taget space have enough
 	-- room for carry stack?
 	for i=1,ncarry	do
@@ -708,7 +711,7 @@ function pl_move(
  		return pl,blx
  	end
 	end
-	
+
 	-- if moving up, check if top
 	-- of stack has clearance
 	if dy<0
@@ -718,13 +721,13 @@ function pl_move(
 		-- no update
 		return pl,blx
 	end
-	
+
 	-- move player
 	local npl=pl_fall(cp(pl,{
 		x=pl.x+dx,
 		y=pl.y+dy
 	}),blx)
-	
+
 	-- move blocks
 	for i=1,ncarry do
 		local bl=
@@ -734,7 +737,7 @@ function pl_move(
 			blx,npl.x,npl.y-i,bl
 		)
 	end
-	
+
 	return npl,blx
 end
 
@@ -743,13 +746,13 @@ function pl_fall(pl,blx)
 	-- track checkpoint if hit
 	local x=pl.x
 	local y=pl.y
-	
+
 	local plcp=pl_try_chkpt(pl)
-	
+
 	--todo: fix carry
 	local bl=get2d(blx,x,y+1)
-	if is_door(x,y+1) 
-			or is_air(blx,x,y+1) 
+	if is_door(x,y+1)
+			or is_air(blx,x,y+1)
 			or (bl and bl.walkable)
 			then
 		return pl_fall(cp(plcp,{
@@ -763,7 +766,7 @@ end
 function pl_try_chkpt(pl)
 	-- if player hit checkpoint,
 	-- save state in pl.chkpt
-	
+
 	if is_door(pl.x,pl.y) then
 		return pl_set_chkpt(pl)
 	else
@@ -824,24 +827,24 @@ end
 
 function proc_evts(state)
 	local evts=state.events
-	
+
 	-- hack: clear pl2 input
  local tmp_st=cp(state,{
 		pl2=cp(state.pl2,{
 			input=no_input
 		})
 	})
-	
+
 	--todo: use event queue?
 	--todo: magic number:
 	-- 11 == max event index
 	for i=0,11 do
 		local evt=evts[i]
-		
+
 		if evt and not evt.done then
  		tmp_st,nevt=
  			event_f[i](tmp_st,evt)
- 		
+
  		if nevt!=nil then
  			local npl2,npl,nblx=
  				next_pls_blx(
@@ -849,7 +852,7 @@ function proc_evts(state)
  					tmp_st.pl,
  					tmp_st.blocks
  				)
- 		
+
  			tmp_st=cp(tmp_st,{
  				pl=npl,
  				pl2=npl2,
@@ -858,13 +861,13 @@ function proc_evts(state)
  					[i]=nevt
  				})
  			})
- 			
+
  			-- do events sequentially
  			break
  		end
  	end
 	end
-	
+
 	return tmp_st
 end
 
@@ -928,25 +931,25 @@ event_f={
 			state,evt,85,26,false
 		)
 	end,
-	
+
 	[1]=function (state,evt)
 		return anim_event(
 			state,evt,83,22,true
 		)
 	end,
-	
+
 	[2]=function (state,evt)
 		return anim_event(
 			state,evt,95,25,true
 		)
 	end,
-	
+
 	[3]=function (state,evt)
 		return anim_event(
 			state,evt,67,34,false
 		)
 	end,
-	
+
 	[4]=function (state,evt)
 		return text_event(
 			cp(state,{
@@ -956,9 +959,9 @@ event_f={
 			{"press 🅾️ (z) to swap"}
 		)
 	end,
-	
+
 	[5]=function (state,evt)
-		
+
 		local nstate
 		if state.pl.s==sp_pl2 then
 			nstate=swap_players(
@@ -967,7 +970,7 @@ event_f={
 		else
 			nstate=state
 		end
-		
+
 		return cp(nstate,{
  			coop=false
  		}),
@@ -975,7 +978,7 @@ event_f={
  			done=true,
  		})
 	end,
-	
+
 	[6]=function (state,evt)
 		return anim_event(
 			cp(state,{
@@ -997,34 +1000,34 @@ event_f={
 			end
 		)
 	end,
-	
+
 	[7]=function (state,evt)
 		return text_event(state,evt,{
 			"press ⬅️ (left) and",
 			"➡️ (right) to move"
 		})
 	end,
-	
+
 	[8]=function (state,evt)
 		return text_event(state,evt,{
 			"press ❎ (x) to reset",
 			"at last checkpoint"
 		})
 	end,
-	
+
 	[9]=function (state,evt)
 		return text_event(state,evt,{
 			"press ⬆️ (up) to climb"
 		})
 	end,
-	
+
 	[10]=function (state,evt)
 		return text_event(state,evt,{
 			"press ⬇️ (down) to pickup",
 			"and drop blocks"
 		})
 	end,
-	
+
 	[11]=function (state,evt)
 		return text_event(state,evt,{
 			"find the exit!"
@@ -1042,13 +1045,13 @@ function swap_players(
 			y=swap_pos and a.y or b.y,
 			s=b.s,
 			right=(
-				swap_pos 
-				and a.right 
+				swap_pos
+				and a.right
 				or b.right
 			),
 		})
 	end
-	
+
 	return cp(state,{
 		pl=cp_pl(state.pl,state.pl2),
 		pl2=cp_pl(state.pl2,state.pl)
@@ -1083,7 +1086,7 @@ function anim_event(
 	else
 		nstate=state
 	end
-	
+
 	return animate(
 		nstate,evt,on_done
 	)
@@ -1095,7 +1098,7 @@ function animate(
 	local fr=evt.frame
  local kfr=fr/anim_time
  local anim=anims[evt.n]
-	
+
 	if kfr>#anim then
 		if on_done then
  		return on_done(state),
@@ -1109,20 +1112,20 @@ function animate(
  			})
 		end
 	end
-	
+
 	local nevt=cp(evt,{
 		frame=fr+1
 	})
-	
-	if fr%anim_time!=0 
+
+	if fr%anim_time!=0
 			or anim[kfr]==nil	then
 		return state,nevt
 	end
-	
+
 	local pl2inp=input({
 		[anim[kfr]]=true
 	})
-	
+
 	return cp(state,{
 		pl2=cp(state.pl2,{
 			input=pl2inp
@@ -1134,25 +1137,25 @@ function text_event(
 	state,evt,texts
 )
 	--todo: real text
-	
+
 	local fr=evt.frame
-	
+
 	if fr==0 then
 		--debug("text",texts[1])
 	end
-	
+
 	if fr>textbox_time then
 		--debug("text", " ")
 		return state,cp(evt,{
 			done=true
 		})
 	end
-	
+
 	local nevt=cp(evt,{
 		text=texts,
 		frame=fr+1
 	})
-	
+
 	return state,nevt
 end
 
@@ -1167,7 +1170,7 @@ end
 
 function draw_event_text(args)
  local y=80
- 
+
 	rect(
 		0,y-2,128,y+#args*6,cl_dark
 	)
@@ -1175,7 +1178,7 @@ function draw_event_text(args)
 		0,y-1,128,y+#args*6-1,
 		cl_light
 	)
- 
+
 	for txt in all(args) do
  	local x=64-#txt*2
  	print(
@@ -1224,9 +1227,9 @@ end
 function draw_debug()
 	if debug_en then
  	local y=debug_y
- 	
+
  	camera()
- 	
+
  	for k,v in pairs(debug_s) do
  		if v!=nil then
  			print(k..":"..tostr(v),
@@ -1234,7 +1237,7 @@ function draw_debug()
  			y+=6
  		end
  	end
- 	
+
  	if y>debug_y then
  		-- place cursor below debug
  		print("",0,y)
@@ -1262,13 +1265,13 @@ function title_draw(state)
 	cls(cl_light)
 	spr(sp_pl,60,68)
 	spr(sp_block,60,60)
-	
+
 	local scale=3.3
 	sspr(
 		0,32,36,15,
 		5,4,36*scale,15*scale
 	)
-	
+
 	draw_event_text({
 		"by kris scott",
 		"",
@@ -1340,11 +1343,11 @@ end
 function compose(...)
 	local args = {...}
 	local x=args[#args]
-	
+
 	for i = (#args-1),1,-1 do
 		x=args[i](x)
 	end
-	
+
 	return x
 end
 
@@ -1368,13 +1371,6 @@ function fpmap(f,tbl)
 	return out
 end
 
--- call f on each char in str
-function each_ch(s,f)
-	for i=1,#s do
-		f(sub(s,i,i))
-	end
-end
-
 -- concat array
 function concat(a,b)
 	local out={}
@@ -1394,11 +1390,11 @@ end
 
 function set2d(a,i,j,v)
 	local new_i={[j]=v}
-	
+
 	if a[i]!=nil then
 		new_i=cp(a[i],new_i)
 	end
-	
+
 	return cp(a,{
 		[i]=new_i
 	})
@@ -1431,7 +1427,7 @@ function all2d(a)
 			end
 		end
 	end
-	
+
 	-- iterator
 	local i=0
 	return function()
@@ -1489,17 +1485,357 @@ function any(obj)
 end
 
 -->8
--- notes
+-- pico-8 serializer library
+-- v0.1.0
+-- by kris scott
+--todo: handle whitespace
+
+assert_if_too_big=true
+
+
+-- build character functions
+chr,ord=(function ()
+	-- uses upper and lower case
+	local chars=
+		" !\"#$%&'()*+,-./"
+		.."0123456789:;<=>?"
+		.."@abcdefghijklmno"
+		.."pqrstuvwxyz[\\]^"
+		.."_`abcdefghijklmn"
+		.."opqrstuvwxyz{|}~"
+	local s2c={}
+	local c2s={}
+	for i=1,#chars do
+		local c=i+31
+		local s=sub(chars,i,i)
+		c2s[c]=s
+		s2c[s]=c
+	end
+	
+	local function chr(i)
+		return c2s[i]
+	end
+	
+	local function ord(c)
+		return s2c[sub(c,1,1)]
+	end
+	
+	return chr,ord
+end)()
+
+-- call f on each char in str
+function each_ch(f,str)
+	for i=1,#str do
+		f(sub(str,i,i))
+	end
+end
+
+function is_numeric(str)
+	if str=="" then
+		return false
+	end
+
+	for i=1,#str do
+		local c=sub(str,i,i)
+		
+		if c=="-" then
+ 		if i!=1 then
+ 			return false
+ 		end
+ 	elseif c=="." then
+ 		--pass
+ 	elseif c>="0" and c<="9" then
+ 		--pass
+ 	else
+ 		return false
+		end
+	end
+	
+	return true
+end
+
+-- object to string
+function serialize(obj)
+	if obj==nil then
+		return "nil"
+	elseif type(obj)=="string"
+			then
+		return "\""..obj.."\""
+	elseif type(obj)=="table" then
+ 	local str="{"
+ 	for k,v in pairs(obj) do
+ 		if type(k)!="string" then
+ 			k="["..tostr(k).."]"
+ 		end
+ 		if v!=nil then
+  		str=(
+  			str
+  			..tostr(k)
+  			.."="
+  			..serialize(v)
+  			..","
+  		)
+  	end
+ 	end
+ 	return str.."}"
+ else
+ 	return tostr(obj)
+ end
+end
+
+function next_char(f,str,i)
+	for j=i,#str do
+		if f(sub(str,j,j)) then
+			return j
+		end
+	end
+	
+	return #str+1
+end
+
+function char_not_numeric(c)
+	local n=ord(c)
+	return not (
+		(n>=ord("0") and n<=ord("9"))
+		or n==ord(".")
+		or n==ord("x")
+		or n==ord("-")
+	)
+end
+
+function deserialize(str,i)
+	if i==nil then 
+		i=1
+	end
+	
+	if sub(str,i,i+3)=="true" then
+		return true,i+4
+	elseif sub(str,i,i+4)=="false"
+			then
+		return false,i+5
+	elseif sub(str,i,i+2)=="nil"
+			then
+		return nil,i+3
+	elseif sub(str,i,i)=="\""
+			then
+		--todo: handle escape char
+		local nc=next_char(
+			function(c)
+				return c=="\""
+			end,
+			str,
+			i+1
+		)
+		return sub(str,i+1,nc-1),nc+1
+	elseif sub(str,i,i)=="{"
+			then
+		
+		local out={}
+		local i=i+1
+		
+		while true do
+			local c=sub(str,i,i)
+			if c=="}" then
+				i=i+1
+				break
+			end
+			local ki=i
+			i=next_char(
+				function (c)
+ 				return c=="="
+ 			end,
+ 			str,
+ 			i+1
+ 		)
+ 		local k=sub(str,ki,i-1)
+ 		
+ 		if sub(str,ki,ki)=="[" then
+ 			k=deserialize(
+ 				sub(str,ki+1,i-2)
+ 			)
+ 		end
+ 		
+ 		local v
+ 		v,i=deserialize(str,i+1)
+ 		out[k]=v
+ 		
+			if sub(str,i,i)=="," then
+				i=i+1
+			end
+		end
+		
+		--print(serialize(out))
+		
+		return out,i
+		
+	else -- number
+		local nc=next_char(
+			char_not_numeric,str,i+1
+		)
+		--print(i)
+		--print(nc)
+		--print(sub(str,i,nc-1))
+		return (sub(str,i,nc-1)+0),nc
+	end
+end
+
+function write_persist(obj)
+	local str=serialize(obj)
+	
+	if #str >= 0xff then
+		print("save file too big!")
+		print("bytes:"..#str)
+		if assert_if_too_big then
+ 		assert(false)
+ 	end
+		return
+	end
+	
+	for i=1,#str do
+		poke(
+			0x5300+i-1,
+			ord(sub(str,i,i))
+		)
+	end
+	
+	-- null terminate
+	poke(0x5300+#str,0)
+end
+
+function read_persist()
+	local str=""
+	for addr=0x5300,0x53ff do
+		local x=peek(addr)
+		if x==0 then
+			break
+		end
+		str=str..chr(x)
+	end
+	return deserialize(str)
+end
+
+-- testbench
 --[[
 
-todo
-----
+assert(is_numeric("1"))
+assert(is_numeric("0"))
+assert(is_numeric("123"))
+assert(is_numeric("-456"))
+assert(is_numeric("951.753"))
+assert(is_numeric("-1.2"))
+assert(not is_numeric("a23"))
+assert(not is_numeric(""))
+assert(not is_numeric("1.3a"))
+assert(not is_numeric("-b"))
+
+function stest(test,...)
+	local expct=""
+	local str=serialize(test)
+	for v in all({...}) do
+		if str==v then
+			return
+		end
+		expct=v
+	end
+	print("test:"..tostr(test))
+	print("expect:"..expct)
+	print("got:"..str)
+	assert(false)
+end
+
+function dtest(test,expct)
+	local out,i=deserialize(test)
+	
+	if out==expct
+			or serialize(out)
+				==serialize(expct)
+			then
+		
+		if i-1==#test then
+			return
+		end
+		print("i-1:"..(i-1))
+		print("#test:"..#test)
+	end
+	
+	print("test:"..test)
+	print("expect:"..
+		serialize(expct)
+	)
+	print("got:"..serialize(out))
+	assert(false)
+end
+
+stest(590,"590")
+stest(-123.456,"-123.456")
+stest(nil,"nil")
+stest(true,"true")
+stest(false,"false")
+stest({},"{}")
+stest({a=1.2},"{a=1.2,}")
+stest({b=nil},"{}")
+stest({c=true},"{c=true,}")
+stest({c=false},"{c=false,}")
+stest(
+	{foo="bar"},"{foo=\"bar\",}"
+)
+stest({a={b={c=123}}},
+		"{a={b={c=123,},},}"
+)
+stest({a=1,b="foo"},
+	"{a=1,b=\"foo\",}",
+	"{b=\"foo\",a=1,}"
+)
+stest({"a",},"{[1]=\"a\",}")
+
+dtest("654",654)
+dtest("987.321",987.321)
+dtest("0x123",0x123)
+dtest("\"foo bar\"","foo bar")
+dtest("{}",{})
+dtest("nil",nil)
+dtest("true",true)
+dtest("false",false)
+
+assert(
+	deserialize(serialize(
+		{"a","b","c"}
+	))[2]=="b"
+)
+
+testobj=deserialize(serialize({
+	[0]=5,
+	[1]=6,
+	a="foo",
+	b=123,
+	c=false,
+	d=true,
+	e={"z","y","x"},
+	f={
+		foo="bar",
+		baz="qux",
+	},
+	g={foo={bar={qux=true}}}
+}))
+
+write_persist(testobj)
+testobj=read_persist()
+--print(serialize(testobj))
+
+assert(testobj[0]==5)
+assert(testobj[1]==6)
+assert(testobj.a=="foo")
+assert(testobj.b==123)
+assert(testobj.c==false)
+assert(testobj.d==true)
+assert(testobj.e[1]=="z")
+assert(testobj.e[3]=="x")
+assert(testobj.f.foo=="bar")
+assert(testobj.g.foo.bar.qux)
 
 
-sprite flags
-------------
-0: air
-
+-- all passed
+assert(nil)
 --]]
 __gfx__
 00000000666666665555565555555555665555566555555666655566655555566666666666666666555555555555555500000000000000000000000000000000
