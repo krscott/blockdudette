@@ -2,7 +2,7 @@ pico-8 cartridge // http://www.pico-8.com
 version 16
 __lua__
 -- blockdudette
--- v0.9.1
+-- v1.0.0
 -- by kris scott
 
 -- developed as a study of
